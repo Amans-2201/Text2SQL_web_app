@@ -1,0 +1,6 @@
+ # frontend/.gitignore
+node_modules/
+build/
+.env*
+!/.env.example
+*.log

@@ -1,0 +1,24 @@
+# text2sql-app/.gitignore
+
+# IDE/OS files
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Python cache/virtual environments
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+
+# Node modules
+frontend/node_modules/
+frontend/build/
+
+# Secrets / Environment variables
+backend/.env
+frontend/.env*
+!frontend/.env.example # (if you create an example)
+
+# Log files
+*.log
