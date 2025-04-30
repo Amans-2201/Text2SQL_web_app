@@ -1,0 +1,91 @@
+.chat-interface {
+  @apply flex h-screen transition-colors duration-200;
+}
+
+.chat-header {
+  @apply p-4 bg-blue-600 dark:bg-gray-800 text-white flex justify-between items-center transition-colors duration-200;
+}
+
+.chat-title {
+  @apply text-xl font-semibold;
+}
+
+.logout-button {
+  @apply px-3 py-1 bg-red-500 hover:bg-red-700 rounded text-sm;
+}
+
+.suggestions-wrapper {
+  @apply border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 transition-all duration-200;
+}
+
+.suggestions-header {
+  @apply flex items-center justify-between px-4 py-2;
+}
+
+.minimize-button {
+  @apply p-1 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 
+         dark:hover:bg-gray-700 transition-colors duration-200;
+}
+
+.suggestions-container {
+  @apply flex flex-wrap gap-2 p-4 transition-all duration-200 ease-in-out;
+}
+
+.suggestion-btn {
+  @apply px-4 py-2 text-sm bg-white border border-blue-300 text-blue-600 rounded-full 
+         hover:bg-blue-50 transition-colors duration-200 shadow-sm;
+}
+
+.chat-main {
+  @apply flex-grow flex flex-col bg-white dark:bg-gray-900 transition-colors duration-200;
+}
+
+.chat-sidebar {
+  @apply bg-gray-800 dark:bg-gray-900 text-white w-64 p-4 flex flex-col h-full border-r border-gray-700 transition-colors duration-200;
+  min-width: 16rem;
+}
+
+.chat-content {
+  @apply flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-800 transition-colors duration-200;
+}
+
+.input-area {
+  @apply p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 transition-colors duration-200;
+}
+
+.chat-input {
+  @apply flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none 
+         focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100;
+}
+
+.send-button {
+  @apply px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+         disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors duration-200;
+}
+
+.cancel-btn {
+  @apply px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 
+         transition-colors duration-200;
+}
+
+.message-bubble {
+  @apply p-3 rounded-lg max-w-lg shadow-sm dark:text-white;
+}
+
+.message-bubble-user {
+  @apply bg-blue-600 text-white;
+}
+
+.message-bubble-bot {
+  @apply bg-white dark:bg-gray-700 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-600;
+}
+
+.theme-toggle {
+  @apply p-2 rounded-full hover:bg-gray-700 transition-colors duration-200;
+}
+
+.suggestion-chip {
+  @apply px-3 py-1 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 
+         rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 
+         dark:hover:bg-gray-600 transition-colors duration-200;
+}

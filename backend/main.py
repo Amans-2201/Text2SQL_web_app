@@ -6,17 +6,13 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from fastapi import FastAPI, HTTPException, Request # type: ignore
-from fastapi.middleware.cors import CORSMiddleware # type: ignore
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from backend.api.v1.api import api_router
 import logging
-from backend.services.db_service import get_db_connection
-# Ensure the correct path to the Token module
-try:
-    from backend.schemas.token import Token # type: ignore
-except ModuleNotFoundError:
-    raise ImportError("The module 'backend.schemas.token' could not be found. Ensure the file exists and the path is correct.")
+from backend.services.db_service import get_db_connection, execute_query
+from backend.schemas.token import Token
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

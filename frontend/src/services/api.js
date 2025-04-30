@@ -39,48 +39,57 @@ apiClient.interceptors.response.use(
 
 // --- Authentication ---
 export const loginUser = async (username, password) => {
-  // FastAPI's OAuth2PasswordRequestForm expects form data
-  const formData = new URLSearchParams();
-  formData.append('username', username);
-  formData.append('password', password);
-
-  const response = await apiClient.post('/auth/login', formData, {
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-  });
-  
-  if (response.data.access_token) {
-    localStorage.setItem('authToken', response.data.access_token);
+  // Simplified login - just return success
+  if (username && password) {
+    return { access_token: 'dummy_token' };
   }
-  return response.data;
+  throw new Error('Invalid credentials');
 };
 
 export const logoutUser = () => {
-    localStorage.removeItem('authToken');
-    // Optionally: Call a backend logout endpoint if it exists
-}
+  localStorage.removeItem('authToken');
+};
 
 // --- Chat ---
-export const askQuestion = async (question) => {
+export const askQuestion = async (question, signal) => {
   try {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
     const response = await apiClient.post('/chat/ask', 
       { question },
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      }
+      { signal }
     );
     return response.data;
   } catch (error) {
-    console.error("Ask Question API error:", error);
-    if (error.response?.status === 401) {
-      window.location.href = '/login';
+    if (error.name === 'AbortError') {
+      console.log('Request aborted');
+      throw error;
     }
+    console.error("Ask Question API error:", error);
+    throw error;
+  }
+};
+
+// Add this new function
+export const createVisualization = async (data, columns, chartType) => {
+  try {
+    const response = await apiClient.post('/chat/visualize', {
+      data,
+      columns,
+      chartType
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Visualization API error:", error);
+    throw error;
+  }
+};
+
+// Add this function to the existing api.js file
+export const getDatabaseInfo = async () => {
+  try {
+    const response = await apiClient.get('/chat/database-info');
+    return response.data;
+  } catch (error) {
+    console.error("Database info fetch error:", error);
     throw error;
   }
 };

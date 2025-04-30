@@ -8,13 +8,13 @@ from jose import JWTError, jwt
 from .config import settings
 
 # OAuth2 scheme configuration
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")  # Added leading slash
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
-# Simple user database - for development only
+# Update the dummy user database with correct credentials
 DUMMY_USER_DB = {
-    "testuser": {
-        "username": "testuser",
-        "password": "password"  # Plain text password for development
+    "chatbot_user": {
+        "username": "chatbot_user",
+        "password": "testing12345"  # Match the password you're using in frontend
     }
 }
 
@@ -23,14 +23,14 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
     user = DUMMY_USER_DB.get(username)
     if not user:
         return None
-    if password != user["password"]:  # Simple password comparison
+    if password != user["password"]:
         return None
     return user
 
 def create_access_token(data: dict) -> str:
     """Create JWT access token"""
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.ALGORITHM)
 

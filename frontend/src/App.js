@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import LoginPage from './components/Auth/LoginPage';
-import ChatInterface from './components/Chat/ChatInterface';
+import { ThemeProvider } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
+
+// Lazy load components
+const ChatInterface = lazy(() => import('./components/Chat/ChatInterface'));
+const LoginPage = lazy(() => import('./components/Auth/LoginPage'));
+
+// Add loading fallback
+const LoadingFallback = () => (
+  <div className="flex h-screen items-center justify-center bg-gray-100">
+    <div className="animate-spin h-12 w-12 border-4 border-blue-500 rounded-full border-t-transparent"></div>
+  </div>
+);
 
 function App() {
   const styles = {
@@ -19,11 +29,7 @@ function App() {
   };
 
   function AppContent() {
-    const { isAuthenticated, isLoading } = useAuth();
-
-    if (isLoading) {
-      return <div style={styles}>Loading...</div>;
-    }
+    const { isAuthenticated } = useAuth();
 
     return (
       <Routes>
@@ -45,9 +51,13 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <ErrorBoundary>
-          <AppContent />
-        </ErrorBoundary>
+        <ThemeProvider>
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingFallback />}>
+              <AppContent />
+            </Suspense>
+          </ErrorBoundary>
+        </ThemeProvider>
       </AuthProvider>
     </Router>
   );

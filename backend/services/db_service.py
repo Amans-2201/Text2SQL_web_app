@@ -1,79 +1,134 @@
 # backend/services/db_service.py
-import psycopg2 # Or import mysql.connector or pyodbc
-from psycopg2.extras import RealDictCursor
-from backend.core.config import settings
+from typing import Tuple, List, Dict, Any
+import mysql.connector
+from mysql.connector import pooling
 import logging
+from contextlib import asynccontextmanager
+from backend.core.config import settings
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def get_db_connection():
-    """Establishes a database connection."""
+class MySQLPool:
+    _instance = None
+    _pool = None
+    _current_db = None
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def __init__(self):
+        self.initialize_pool()
+
+    def initialize_pool(self, database_name=None):
+        """Initialize or reinitialize the connection pool with a new database"""
+        if database_name:
+            self._current_db = database_name
+        else:
+            self._current_db = settings.DB_NAME
+
+        # Close existing pool if it exists
+        if self._pool:
+            try:
+                self._pool.close()
+            except:
+                pass
+
+        self._pool = mysql.connector.pooling.MySQLConnectionPool(
+            pool_name="mypool",
+            pool_size=5,
+            host=settings.DB_HOST,
+            user=settings.DB_USER,
+            password=settings.DB_PASSWORD,
+            database=self._current_db
+        )
+
+    def switch_database(self, new_database):
+        """Switch to a different database"""
+        self.initialize_pool(new_database)
+
+async def get_db_connection():
+    """Get database connection with better error handling"""
     try:
-        conn = psycopg2.connect(settings.DATABASE_URL)
-        logger.info("Database connection established successfully.")
-        return conn
+        connection = MySQLPool.get_instance()._pool.get_connection()
+        return connection
     except Exception as e:
-        logger.error(f"Database connection failed: {e}")
-        raise ConnectionError(f"Could not connect to the database: {e}")
+        logger.error(f"Database connection error: {e}")
+        raise Exception(f"Failed to connect to database: {str(e)}")
 
-def execute_query(query: str) -> tuple[list[dict], list[str]]:
-    """
-    Executes a SQL query and returns results and column names
-    """
+@asynccontextmanager
+async def get_db():
+    """Async context manager for database connections"""
+    connection = await get_db_connection()
     try:
-        with psycopg2.connect(settings.DATABASE_URL) as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(query)
-                results = cur.fetchall()
-                if results:
-                    # Convert results to list of dicts
-                    data = [dict(row) for row in results]
-                    # Get column names from the first row
-                    columns = list(data[0].keys())
-                    return data, columns
-                return [], []
+        yield connection
+    finally:
+        connection.close()
+
+async def execute_query(query: str, values: List[Any] = None) -> Tuple[List[Dict], List[str]]:
+    """Execute SQL query and return results"""
+    try:
+        async with get_db() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(query, values or ())
+            data = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            return list(data), columns
     except Exception as e:
-        logger.error(f"Error executing query: {e}")
-        raise RuntimeError(f"Failed to execute query: {e}")
+        logger.error(f"Database error: {e}")
+        raise
 
-def get_db_schema() -> str:
-    """
-    Fetches database schema information directly from PostgreSQL
-    """
+async def get_db_schema() -> str:
+    """Fetches database schema information"""
     try:
-        with psycopg2.connect(settings.DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                # Query to get table and column information
-                schema_query = """
-                    SELECT 
-                        t.table_name,
-                        array_agg(
-                            c.column_name || ' (' || 
-                            CASE 
-                                WHEN c.data_type = 'character varying' THEN 'VARCHAR'
-                                WHEN c.data_type = 'double precision' THEN 'DECIMAL'
-                                ELSE upper(c.data_type)
-                            END || ')'
-                            ORDER BY c.ordinal_position
-                        ) as columns
-                    FROM information_schema.tables t
-                    JOIN information_schema.columns c 
-                        ON t.table_name = c.table_name
-                    WHERE t.table_schema = 'public'
-                    AND t.table_type = 'BASE TABLE'
-                    GROUP BY t.table_name;
-                """
-                
-                cur.execute(schema_query)
-                tables = cur.fetchall()
-                
-                schema_info = []
-                for table_name, columns in tables:
-                    schema_info.append(f"Table: {table_name}\nColumns: {', '.join(columns)}")
-                
-                return '\n'.join(schema_info)
-
+        query = """
+        SELECT 
+            TABLE_NAME,
+            GROUP_CONCAT(
+                CONCAT(COLUMN_NAME, ' (', 
+                    CASE 
+                        WHEN DATA_TYPE = 'varchar' THEN 'VARCHAR'
+                        WHEN DATA_TYPE = 'double' THEN 'DECIMAL'
+                        ELSE UPPER(DATA_TYPE)
+                    END, ')')
+                ORDER BY ORDINAL_POSITION
+            ) as columns
+        FROM information_schema.columns 
+        WHERE table_schema = DATABASE()
+        GROUP BY TABLE_NAME;
+        """
+        data, _ = await execute_query(query)
+        schema_info = []
+        for row in data:
+            schema_info.append(f"Table: {row['TABLE_NAME']}\nColumns: {row['columns']}")
+        return '\n'.join(schema_info)
     except Exception as e:
         logger.error(f"Error fetching database schema: {e}")
         raise RuntimeError(f"Failed to fetch database schema: {e}")
+
+async def refresh_schema_info():
+    """Refresh schema information after database switch"""
+    try:
+        query = """
+        SELECT 
+            TABLE_NAME,
+            GROUP_CONCAT(
+                CONCAT(COLUMN_NAME, ' (', 
+                    CASE 
+                        WHEN DATA_TYPE = 'varchar' THEN 'VARCHAR'
+                        WHEN DATA_TYPE = 'double' THEN 'DECIMAL'
+                        ELSE UPPER(DATA_TYPE)
+                    END, ')')
+                ORDER BY ORDINAL_POSITION
+            ) as columns
+        FROM information_schema.columns 
+        WHERE table_schema = DATABASE()
+        GROUP BY TABLE_NAME;
+        """
+        data, _ = await execute_query(query)
+        return data
+    except Exception as e:
+        logger.error(f"Error refreshing schema info: {e}")
+        raise RuntimeError(f"Failed to refresh schema info: {e}")

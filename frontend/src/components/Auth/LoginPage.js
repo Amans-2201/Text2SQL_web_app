@@ -1,66 +1,104 @@
-// frontend/src/components/Auth/LoginPage.js
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import DatabaseConfig from '../Config/DatabaseConfig';
 import LoadingSpinner from '../Common/LoadingSpinner';
 
 const LoginPage = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const { login, isLoading, loginError } = useAuth();
+  const [username, setUsername] = useState('chatbot_user');  // Updated default username
+  const [password, setPassword] = useState('');  // Leave password empty for security
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showDbConfig, setShowDbConfig] = useState(true);
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
+
     try {
-      // Use the loginUser function from api.js instead of direct login
       await login(username, password);
-      // No need to redirect here as AuthContext handles it
+      navigate('/', { replace: true });
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Login error:', error);
+      setError(
+        error.response?.data?.detail || 
+        error.response?.data?.message ||
+        'Failed to login. Please check your credentials.'
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Update the handleConfigComplete function:
+  const handleConfigComplete = (config) => {
+    // Store database configuration
+    localStorage.setItem('dbConfig', JSON.stringify(config));
+    setShowDbConfig(false);
+  };
+
+  if (showDbConfig) {
+    return <DatabaseConfig onConfigComplete={handleConfigComplete} />;
+  }
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="px-8 py-6 mt-4 text-left bg-white shadow-lg rounded-lg">
-        <h3 className="text-2xl font-bold text-center">Login to your account</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="mt-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Login to your account
+          </h2>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+              {error}
+            </div>
+          )}
+          <div className="rounded-md shadow-sm -space-y-px">
             <div>
-              <label className="block" htmlFor="username">Username</label>
+              <label htmlFor="username" className="sr-only">Username</label>
               <input
-                type="text"
-                placeholder="Username"
                 id="username"
+                name="username"
+                type="text"
+                required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-600"
-                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Username"
+                disabled={loading}
               />
             </div>
-            <div className="mt-4">
-              <label className="block" htmlFor="password">Password</label>
+            <div>
+              <label htmlFor="password" className="sr-only">Password</label>
               <input
-                type="password"
-                placeholder="Password"
                 id="password"
+                name="password"
+                type="password"
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-600"
-                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Password"
+                disabled={loading}
               />
             </div>
-            {loginError && (
-                <div className="mt-4 text-xs text-red-600">{loginError}</div>
-            )}
-            <div className="flex items-baseline justify-between">
-              <button
-                type="submit"
-                className="w-full px-6 py-2 mt-4 text-white bg-blue-600 rounded-lg hover:bg-blue-900 flex items-center justify-center"
-                disabled={isLoading}
-              >
-                 {isLoading ? <LoadingSpinner size="w-5 h-5" /> : 'Login'}
-              </button>
-            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
+                loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+            >
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
           </div>
         </form>
       </div>

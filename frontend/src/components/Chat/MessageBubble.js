@@ -1,4 +1,4 @@
- // frontend/src/components/Chat/MessageBubble.js
+// frontend/src/components/Chat/MessageBubble.js
 import React from 'react';
 
 const MessageBubble = ({ message }) => {
@@ -6,16 +6,17 @@ const MessageBubble = ({ message }) => {
   const isUser = sender === 'user';
 
   return (
-    <div className={`flex mb-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div 
+      className={`flex mb-3 ${isUser ? 'justify-end' : 'justify-start'}`}
+    >
       <div
         className={`py-2 px-4 rounded-lg max-w-lg lg:max-w-xl shadow ${
           isUser
             ? 'bg-blue-500 text-white'
-            : 'bg-white text-gray-800 border border-gray-200'
+            : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-600'
         }`}
       >
-        {/* Simple text display - could add markdown support later */}
-         <div style={{ whiteSpace: 'pre-wrap' }}>{text}</div>
+        <div className="whitespace-pre-wrap">{text}</div>
       </div>
     </div>
   );
