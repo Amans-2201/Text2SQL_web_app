@@ -20,6 +20,57 @@ const ResultsDisplay = ({ result, isLoading }) => {
         }
     };
 
+    // SQL query formatter function
+    const formatSqlQuery = (sql) => {
+        if (!sql) return '';
+        
+        // Define SQL keywords for proper formatting
+        const keywords = [
+            'SELECT', 'FROM', 'WHERE', 'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 
+            'OUTER JOIN', 'ON', 'AND', 'OR', 'GROUP BY', 'ORDER BY', 'HAVING', 
+            'LIMIT', 'OFFSET', 'UNION', 'ALL', 'AS', 'DISTINCT', 'COUNT', 'SUM', 
+            'AVG', 'MIN', 'MAX', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'IN'
+        ];
+        
+        // Replace keywords with line breaks and proper indentation
+        let formattedSql = sql.trim();
+        
+        // Add line breaks for main clauses
+        keywords.forEach(keyword => {
+            // Skip column aliases with AS
+            if (keyword === 'AS') return;
+            
+            const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+            formattedSql = formattedSql.replace(regex, (match) => {
+                // Different indentation based on keyword
+                if (['SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING'].includes(match.toUpperCase())) {
+                    return `\n${match.toUpperCase()}`;
+                } else if (['JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'OUTER JOIN'].includes(match.toUpperCase())) {
+                    return `\n${match.toUpperCase()}`;
+                } else if (['ON', 'AND', 'OR'].includes(match.toUpperCase())) {
+                    return `\n    ${match.toUpperCase()}`;
+                }
+                return match.toUpperCase();
+            });
+        });
+        
+        // Format commas in SELECT clause
+        formattedSql = formattedSql.replace(/,\s*/g, ',\n    ');
+        
+        // Apply color to keywords
+        keywords.forEach(keyword => {
+            const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+            formattedSql = formattedSql.replace(regex, match => 
+                `<span class="text-purple-600 font-medium">${match.toUpperCase()}</span>`
+            );
+        });
+        
+        // Add proper indentation after SELECT
+        formattedSql = formattedSql.replace(/SELECT\b/i, 'SELECT\n    ');
+        
+        return formattedSql;
+    };
+
     // Add CSV export function
     const exportToCSV = (data, columns) => {
         if (!data || !columns) return;
@@ -101,7 +152,7 @@ const ResultsDisplay = ({ result, isLoading }) => {
                 </div>
             )}
 
-            {/* SQL Query section with copy button */}
+            {/* SQL Query section with formatted query */}
             {result?.query && (
                 <details className="bg-gray-50 p-2 rounded border border-gray-200 text-xs text-gray-600">
                     <summary className="cursor-pointer font-medium flex items-center justify-between">
@@ -124,7 +175,12 @@ const ResultsDisplay = ({ result, isLoading }) => {
                             </button>
                         </div>
                     </summary>
-                    <pre className="mt-2 bg-white p-2 rounded overflow-x-auto">{result.query}</pre>
+                    <div className="mt-2 bg-white p-3 rounded text-sm sql-container">
+                        <pre 
+                            className="font-mono text-gray-800" 
+                            dangerouslySetInnerHTML={{ __html: formatSqlQuery(result.query) }}
+                        />
+                    </div>
                 </details>
             )}
 

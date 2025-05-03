@@ -16,6 +16,27 @@ const LoadingFallback = () => (
   </div>
 );
 
+// Create a separate component that uses useAuth
+function ProtectedRoutes() {
+  const { isAuthenticated } = useAuth();
+  
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/"
+        element={
+          isAuthenticated ? (
+            <ChatInterface />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      />
+    </Routes>
+  );
+}
+
 function App() {
   const styles = {
     padding: '40px',
@@ -28,33 +49,13 @@ function App() {
     margin: '50px'
   };
 
-  function AppContent() {
-    const { isAuthenticated } = useAuth();
-
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/"
-          element={
-            isAuthenticated ? (
-              <ChatInterface />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-      </Routes>
-    );
-  }
-
   return (
     <Router>
       <AuthProvider>
         <ThemeProvider>
           <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
-              <AppContent />
+              <ProtectedRoutes />
             </Suspense>
           </ErrorBoundary>
         </ThemeProvider>

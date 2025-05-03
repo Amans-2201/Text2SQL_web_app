@@ -7,6 +7,10 @@ import LoadingSpinner from '../Common/LoadingSpinner';
 const LoginPage = () => {
   const [username, setUsername] = useState('chatbot_user');  // Updated default username
   const [password, setPassword] = useState('');  // Leave password empty for security
+  const savedConfig = JSON.parse(localStorage.getItem('dbConfig') || '{}');
+  const [dbType, setDbType] = useState(savedConfig.dbType || 'postgresql');
+  const [dbName, setDbName] = useState(savedConfig.name || '');
+  const [showDbFields, setShowDbFields] = useState(!savedConfig.dbType || !savedConfig.name);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showDbConfig, setShowDbConfig] = useState(true);
@@ -19,7 +23,8 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      await login(username, password);
+      // Pass dbName if dbType is postgresql
+      await login(username, password, dbType === 'postgresql' ? dbName : undefined);
       navigate('/', { replace: true });
     } catch (error) {
       console.error('Login error:', error);
@@ -59,6 +64,42 @@ const LoginPage = () => {
             </div>
           )}
           <div className="rounded-md shadow-sm -space-y-px">
+            {showDbFields && (
+              <>
+                {/* Database Type Selector */}
+                <div>
+                  <label htmlFor="dbType" className="sr-only">Database Type</label>
+                  <select
+                    id="dbType"
+                    name="dbType"
+                    value={dbType}
+                    onChange={e => setDbType(e.target.value)}
+                    className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                    disabled={loading}
+                  >
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                  </select>
+                </div>
+                {/* Database Name Input (only for PostgreSQL) */}
+                {dbType === 'postgresql' && (
+                  <div>
+                    <label htmlFor="dbName" className="sr-only">Database Name</label>
+                    <input
+                      id="dbName"
+                      name="dbName"
+                      type="text"
+                      required
+                      value={dbName}
+                      onChange={e => setDbName(e.target.value)}
+                      className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                      placeholder="Database Name"
+                      disabled={loading}
+                    />
+                  </div>
+                )}
+              </>
+            )}
             <div>
               <label htmlFor="username" className="sr-only">Username</label>
               <input

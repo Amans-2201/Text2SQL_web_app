@@ -11,7 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from backend.api.v1.api import api_router
 import logging
-from backend.services.db_service import get_db_connection, execute_query
 from backend.schemas.token import Token
 
 logging.basicConfig(level=logging.INFO)

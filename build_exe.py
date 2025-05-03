@@ -23,6 +23,7 @@ def build_exe():
         '--icon=frontend/public/favicon.ico',
         '--add-data=frontend/build;frontend/build',
         '--add-data=backend;backend',
+        '--add-data=app_config.json;.',
         '--hidden-import=uvicorn.logging',
         '--hidden-import=uvicorn.loops',
         '--hidden-import=uvicorn.loops.auto',
@@ -33,8 +34,10 @@ def build_exe():
         '--hidden-import=uvicorn.protocols.websockets.auto',
         '--hidden-import=uvicorn.lifespan',
         '--hidden-import=uvicorn.lifespan.on',
+        '--hidden-import=google.generativeai',
         '--collect-all=fastapi',
         '--collect-all=starlette',
+        '--collect-all=google.generativeai',
     ])
 
 if __name__ == "__main__":

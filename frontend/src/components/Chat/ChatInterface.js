@@ -18,6 +18,7 @@ const ChatInterface = () => {
   const { logout } = useAuth();
   const [abortController, setAbortController] = useState(null);
   const [isSuggestionsMinimized, setSuggestionsMinimized] = useState(false);
+  const [refreshingSuggestions, setRefreshingSuggestions] = useState(false);
 
   // Load chat history from localStorage on component mount
   useEffect(() => {
@@ -25,13 +26,22 @@ const ChatInterface = () => {
     const savedResult = localStorage.getItem('lastResult');
     
     if (savedMessages) {
-      setMessages(JSON.parse(savedMessages));
+      try {
+        setMessages(JSON.parse(savedMessages));
+      } catch (e) {
+        console.error("Error parsing saved messages:", e);
+        setMessages([{ sender: 'bot', text: 'Hello! How can I help you with your data today?' }]);
+      }
     } else {
       setMessages([{ sender: 'bot', text: 'Hello! How can I help you with your data today?' }]);
     }
     
     if (savedResult) {
-      setCurrentResult(JSON.parse(savedResult));
+      try {
+        setCurrentResult(JSON.parse(savedResult));
+      } catch (e) {
+        console.error("Error parsing saved result:", e);
+      }
     }
     
     fetchSuggestions();
@@ -59,13 +69,35 @@ const ChatInterface = () => {
     }
   }, [currentResult]);
 
-  // Add debounced suggestion fetching
-  const fetchSuggestions = useCallback(async () => {
+  // Fetch suggestions
+  const fetchSuggestions = useCallback(async (forceRefresh = false) => {
     try {
-      const response = await apiClient.get('/chat/suggestions');
-      setSuggestions(response.data.suggestions || []);
+      setRefreshingSuggestions(true);
+      
+      // Add timestamp and force parameter to prevent caching
+      const timestamp = Date.now();
+      const url = forceRefresh 
+        ? `/chat/suggestions?t=${timestamp}&force=true` 
+        : `/chat/suggestions?t=${timestamp}`;
+      
+      console.log("Fetching AI-generated suggestions...");
+      const response = await apiClient.get(url);
+      
+      console.log("AI Suggestions response:", response.data);
+      
+      if (Array.isArray(response.data)) {
+        setSuggestions(response.data);
+      } else if (response.data && Array.isArray(response.data.suggestions)) {
+        setSuggestions(response.data.suggestions);
+      } else {
+        console.warn("Unexpected suggestions format:", response.data);
+        setSuggestions([]);
+      }
     } catch (error) {
-      console.error('Failed to fetch suggestions:', error);
+      console.error('Failed to fetch AI suggestions:', error);
+      setSuggestions([]);
+    } finally {
+      setRefreshingSuggestions(false);
     }
   }, []);
 
@@ -235,6 +267,11 @@ const ChatInterface = () => {
     setSuggestionsMinimized(!isSuggestionsMinimized);
   };
 
+  // Update refresh button to force a refresh
+  const handleRefreshSuggestions = () => {
+    fetchSuggestions(true); // Pass true to force refresh
+  };
+
   return (
     <div className="flex h-screen">
       <ErrorBoundary>
@@ -260,12 +297,32 @@ const ChatInterface = () => {
           </div>
         </header>
 
-        {suggestions.length > 0 && (
-          <div className="suggestions-wrapper">
-            <div className="suggestions-header">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Suggested Questions
-              </span>
+        <div className={`suggestions-wrapper ${isSuggestionsMinimized ? 'collapsed' : ''}`}>
+          <div className="suggestions-header">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Suggested Questions
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefreshSuggestions}
+                className="refresh-button"
+                title="Generate new AI suggestions"
+                disabled={refreshingSuggestions}
+              >
+                <svg
+                  className={`w-4 h-4 text-gray-500 hover:text-blue-500 ${refreshingSuggestions ? 'animate-spin' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+              </button>
               <button
                 onClick={toggleSuggestions}
                 className="minimize-button"
@@ -288,19 +345,33 @@ const ChatInterface = () => {
                 </svg>
               </button>
             </div>
-            <div className={`suggestions-container ${isSuggestionsMinimized ? 'hidden' : ''}`}>
-              {suggestions.map((suggestion, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  className="suggestion-chip"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
           </div>
-        )}
+          <div className="suggestions-container" style={{ display: isSuggestionsMinimized ? 'none' : 'flex' }}>
+            {refreshingSuggestions ? (
+              <div className="flex justify-center items-center w-full py-2">
+                <div className="animate-spin h-5 w-5 border-2 border-blue-500 rounded-full border-t-transparent"></div>
+                <span className="ml-2 text-sm text-gray-500">Generating AI questions...</span>
+              </div>
+            ) : suggestions.length > 0 ? (
+              <>
+                <div className="w-full mb-2 px-1">
+                  <span className="text-xs text-blue-500 italic">AI-generated based on your database schema</span>
+                </div>
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className="suggestion-chip"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <span className="text-sm text-gray-500 italic">No AI suggestions available</span>
+            )}
+          </div>
+        </div>
 
         <div className="flex-grow overflow-y-auto dark:bg-gray-800">
           <MessageList messages={messages} />

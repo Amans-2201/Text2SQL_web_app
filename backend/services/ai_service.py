@@ -1,13 +1,16 @@
 # backend/services/ai_service.py
 import google.generativeai as genai
 from backend.core.config import settings
-from backend.services.db_service import get_db_schema
+from backend.services.db_factory import get_db_connection
 from backend.api.models.chat import VisualizationSuggestion
 from typing import List, Dict, Any, Optional
 import logging
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import json
+import re
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from backend.core.config_utils import get_current_config
 
 logger = logging.getLogger(__name__)
 _executor = ThreadPoolExecutor(max_workers=3)
@@ -21,6 +24,8 @@ except Exception as e:
     logger.error(f"Failed to configure Google AI SDK: {e}")
     model = None
 
+print(f"API Key: {settings.GOOGLE_API_KEY}")
+
 def _generate_content(prompt: str):
     """Synchronous wrapper for model.generate_content"""
     try:
@@ -30,14 +35,44 @@ def _generate_content(prompt: str):
         raise
 
 async def generate_content_async(prompt: str):
-    """Asynchronously generates content using thread pool"""
+    """Generate content using Gemini model async wrapper"""
     try:
-        loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(_executor, _generate_content, prompt)
+        # Configure the genai library (ensure the API key is set in settings)
+        if not hasattr(genai, '_configured') or not genai._configured:
+            genai.configure(api_key=settings.GOOGLE_API_KEY)
+            genai._configured = True
+        
+        # Set up the model
+        generation_config = {
+            "temperature": 0.2,  # Lower for more focused, analytical responses
+            "top_p": 0.8,
+            "top_k": 40,
+            "max_output_tokens": 1024,
+        }
+
+        safety_settings = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        }
+
+        model = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
+            generation_config=generation_config,
+            safety_settings=safety_settings
+        )
+
+        # Run asynchronously using asyncio
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None, lambda: model.generate_content(prompt)
+        )
+        
         return response
     except Exception as e:
-        logger.error(f"Error in generate_content_async: {e}")
-        raise
+        logger.exception(f"Error generating content with Gemini: {e}")
+        return None
 
 async def generate_sql_from_prompt(question: str, db_type: str = None) -> str:
     """Generates SQL query from natural language"""
@@ -45,11 +80,16 @@ async def generate_sql_from_prompt(question: str, db_type: str = None) -> str:
         raise RuntimeError("AI model not configured")
     
     try:
-        db_type = db_type or settings.DB_TYPE
-        schema = await get_db_schema()
+        logger.info(f"generate_sql_from_prompt: Getting DB connection. Current settings.DB_TYPE: {settings.DB_TYPE}")
+        db = get_db_connection()
+        logger.info("generate_sql_from_prompt: Fetching schema...")
+        schema = await db.get_schema()
+        logger.info("generate_sql_from_prompt: Schema fetched successfully.")
+        
+        current_db_type = db_type or settings.DB_TYPE
         
         prompt = f"""
-        You are a SQL query generator for {db_type.upper()}. Follow these instructions precisely:
+        You are a SQL query generator for {current_db_type.upper()}. Follow these instructions precisely:
         
         Database Schema:
         {schema}
@@ -63,7 +103,7 @@ async def generate_sql_from_prompt(question: str, db_type: str = None) -> str:
         
         User Question: "{question}"
         
-        Generate a {db_type.upper()} query that:
+        Generate a {current_db_type.upper()} query that:
         1. Uses only the columns shown in the schema
         2. Is a SELECT statement only
         3. Returns exactly what the user asks for
@@ -124,42 +164,208 @@ async def summarize_data(question: str, data: list[dict], columns: list[str]) ->
         return "Could not generate summary."
 
 async def generate_query_suggestions() -> list[str]:
-    """Generates smart query suggestions"""
+    """Generates AI-powered query suggestions based on schema analysis"""
     try:
-        schema = await get_db_schema()
+        # Get current db config and a fresh connection
+        config = get_current_config()
+        db_name = config.get("DB_NAME", "")
+        db_type = config.get("DB_TYPE", "").lower()
         
-        prompt = """Generate 5 useful business questions about the data. Return ONLY questions, one per line."""
+        logger.info(f"Generating Gemini-powered suggestions for {db_type}:{db_name}")
+        
+        # Get a fresh DB connection
+        db = get_db_connection(use_cache=False)
+        
+        # Get detailed schema information
+        schema = await db.get_schema()
+        
+        # Also get table list and sample column info for better context
+        table_info = {}
+        
+        if db_type == "postgresql":
+            query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+            data, _ = await db.execute_query(query)
+            tables = [row['table_name'] for row in data] if data else []
+            
+            # Get column info for each table
+            for table in tables:
+                col_query = f"""
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' AND table_name = '{table}' 
+                ORDER BY ordinal_position;
+                """
+                cols_data, _ = await db.execute_query(col_query)
+                table_info[table] = [
+                    {"name": row['column_name'], "type": row['data_type']} 
+                    for row in cols_data
+                ]
+                
+                # Get row count for context
+                count_query = f"SELECT COUNT(*) AS count FROM {table};"
+                try:
+                    count_data, _ = await db.execute_query(count_query)
+                    if count_data and count_data[0].get('count'):
+                        table_info[table].append({"row_count": count_data[0]['count']})
+                except:
+                    pass
+                    
+        else:  # MySQL
+            query = "SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE';"
+            data, _ = await db.execute_query(query)
+            tables = [row['TABLE_NAME'] for row in data] if data else []
+            
+            # Get column info for each table
+            for table in tables:
+                col_query = f"""
+                SELECT COLUMN_NAME, DATA_TYPE 
+                FROM information_schema.columns 
+                WHERE table_schema = DATABASE() AND table_name = '{table}' 
+                ORDER BY ORDINAL_POSITION;
+                """
+                cols_data, _ = await db.execute_query(col_query)
+                table_info[table] = [
+                    {"name": row['COLUMN_NAME'], "type": row['DATA_TYPE']} 
+                    for row in cols_data
+                ]
+                
+                # Get row count for context
+                count_query = f"SELECT COUNT(*) AS count FROM {table};"
+                try:
+                    count_data, _ = await db.execute_query(count_query)
+                    if count_data and count_data[0].get('count'):
+                        table_info[table].append({"row_count": count_data[0]['count']})
+                except:
+                    pass
+        
+        # Create an advanced analytics prompt for Gemini
+        prompt = f"""
+        You are an expert SQL data analyst tasked with helping users explore a database through natural language questions.
+        
+        Database Name: {db_name}
+        Database Type: {db_type}
+        
+        This database contains the following tables with their respective columns:
+        
+        {json.dumps(table_info, indent=2)}
+        
+        Based on this schema, generate 5 insightful analytical questions that would help a data analyst understand the data better.
+        These questions should:
+        
+        1. Explore relationships between tables where foreign keys exist
+        2. Identify trends, patterns, or anomalies that might be present
+        3. Analyze distributions or aggregations of data
+        4. Uncover business insights specific to this domain
+        5. Be answerable with SQL queries against this schema
+        
+        Focus on questions that would provide genuine business value and insights, not just basic counts or listings.
+        Think about what a data analyst would want to know about this data to make informed decisions.
+        
+        Consider the table relationships and domain. For example:
+        - If this appears to be a film/movie database: focus on popularity, ratings, categories, actor performances
+        - If this is e-commerce: focus on sales patterns, product performance, customer behavior
+        - If this is geographic: focus on regional patterns and distributions
+        
+        Return EXACTLY 5 natural language questions, one per line, with no numbering or extra text.
+        """
 
+        logger.info("Sending advanced suggestion prompt to Gemini")
         response = await generate_content_async(prompt)
+        
         if not response or not response.text:
-            return await get_default_suggestions()
+            logger.warning("No response from Gemini for suggestions")
+            return await get_default_suggestions(list(table_info.keys()))
         
-        suggestions = [q.strip() for q in response.text.split('\n') if q.strip()]
-        valid_suggestions = [s for s in suggestions if await is_valid_suggestion(s)][:5]
+        # Process the response into individual questions
+        raw_suggestions = response.text.strip().split("\n")
         
-        return valid_suggestions if valid_suggestions else await get_default_suggestions()
+        # Clean up suggestions (remove numbers, extra whitespace, etc.)
+        suggestions = []
+        for suggestion in raw_suggestions:
+            # Remove numbering like "1. " or "Question 1: "
+            cleaned = re.sub(r'^\d+[\.\)\:]?\s*', '', suggestion.strip())
+            cleaned = re.sub(r'^Question \d+[\.\)\:]?\s*', '', cleaned)
+            
+            if cleaned and len(cleaned) > 10:  # Ensure it's a valid question
+                suggestions.append(cleaned)
+        
+        # Limit to 5 questions
+        valid_suggestions = suggestions[:5]
+        
+        if len(valid_suggestions) < 3:  # If we didn't get enough good questions
+            logger.warning(f"Not enough valid suggestions ({len(valid_suggestions)}), using fallbacks")
+            return await get_default_suggestions(list(table_info.keys()))
+            
+        logger.info(f"Generated {len(valid_suggestions)} Gemini-powered suggestions")
+        return valid_suggestions
         
     except Exception as e:
-        logger.error(f"Error generating suggestions: {e}")
-        return await get_default_suggestions()
+        logger.exception(f"Error generating Gemini suggestions: {e}")
+        tables = await get_table_list() 
+        return await get_default_suggestions(tables)
 
-async def get_default_suggestions() -> list[str]:
-    """Returns default suggestions when AI generation fails"""
-    return [
-        "How many tables are in the database?",
-        "Show me all table names",
-        "What are our total sales?",
-        "Show customer order history",
-        "List all products"
-    ]
+async def get_table_list() -> list[str]:
+    """Get list of tables for fallback suggestions"""
+    try:
+        config = get_current_config()
+        db_type = config.get("DB_TYPE", "").lower()
+        db = get_db_connection(use_cache=False)
+        
+        if db_type == "postgresql":
+            query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+            data, _ = await db.execute_query(query)
+            return [row['table_name'] for row in data] if data else []
+        else:  # mysql
+            query = "SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE';"
+            data, _ = await db.execute_query(query)
+            return [row['TABLE_NAME'] for row in data] if data else []
+    except:
+        return []
 
-async def is_valid_suggestion(suggestion: str) -> bool:
-    """Validates if a suggestion is appropriate"""
-    if not suggestion:
-        return False
-    # Check minimum length and ensure it's a question or command
-    return (len(suggestion) > 10 and 
-            any(word in suggestion.lower() for word in ['how', 'what', 'where', 'when', 'show', 'list', 'give', 'find']))
+async def get_default_suggestions(tables=None) -> list[str]:
+    """Get default suggestions based on available tables"""
+    if not tables:
+        try:
+            tables = await get_table_list()
+        except Exception as e:
+            logger.error(f"Failed to get table list for default suggestions: {e}")
+            tables = [] # Default to empty list if fetch fails
+
+    # Ensure tables is a list (it might be None if get_table_list fails)
+    if tables is None:
+        tables = []
+
+    # If we have film-related tables (sakila)
+    if any(t in ["film", "actor", "rental", "store", "inventory"] for t in tables):
+        return [
+            "Which films have been rented the most frequently?",
+            "Who are our top 10 customers by rental count?",
+            "What is the average rental duration for each film category?",
+            "Which actors appear in the most films?",
+            "How does rental revenue compare across different store locations?"
+        ]
+
+    # If we have e-commerce related tables
+    elif any(t in ["order", "product", "customer", "sale", "website_session", "website_pageview"] for t in tables):
+        return [
+            "What are our best-selling products by revenue?",
+            "Which customers have made the most purchases?",
+            "What is the average order value by month?",
+            "Which products are frequently purchased together?",
+            "What is our customer retention rate?",
+            "Analyze website traffic sources and conversion rates.",
+            "Identify the most common user paths on the website."
+        ]
+    
+    # Generic suggestions
+    else:
+        return [
+            "How many records are in each table?", 
+            "Show me a sample of data from each table",
+            "What are the relationships between the main tables?",
+            "Summarize the data distribution in the primary tables",
+            "What interesting patterns exist in this dataset?"
+        ]
 
 async def suggest_visualization(question: str, data: List[Dict[str, Any]], columns: List[str]) -> Optional[VisualizationSuggestion]:
     """Suggests appropriate visualization based on data and question"""

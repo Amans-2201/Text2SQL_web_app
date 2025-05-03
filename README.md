@@ -66,16 +66,46 @@ pip install -r requirements.txt
 
 4. Create `.env` file:
 ```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=Sales_DB
-DB_USER=your_user
-DB_PASSWORD=your_password
+DB_USER=chatbot_user
+DB_PASSWORD=testing12345
+# Database Connection URLs
+# PostgreSQL connection string
 DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
-GOOGLE_API_KEY=your_google_api_key
-JWT_SECRET_KEY=your_secret_key
+# MySQL connection string
+MYSQL_DATABASE_URL=mysql+mysqlconnector://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
+# --- Google AI Configuration ---
+GOOGLE_API_KEY=YOUR_API_KEY
+
+# --- JWT Configuration --- NOT NEEDED FOR NOW, YOU CAN CONFIGURE AND MAKE CHANGES ACCORDINGLY
+# JWT_SECRET_KEY=your_secret_key
+# ALGORITHM=HS256
+# ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# --- JWT Configuration (temporary values) ---
+JWT_SECRET_KEY=dummy_secret_key
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# --- Schema Info (Simplified - Alternative to dynamic fetching) ---
+# Define tables and columns the AI should know about. Escape quotes if needed.
+# Or leave empty if using dynamic schema fetching in db_service.py
+
+DB_SCHEMA_INFO=
+#DB_SCHEMA_INFO="Table: sales\nColumns: sale_id (INTEGER), product_id (INTEGER), customer_id (INTEGER), sale_date (DATE), amount (DECIMAL)\nTable: products\nColumns: product_id (INTEGER), product_name (VARCHAR), price (DECIMAL)\nTable: customers\nColumns: customer_id (INTEGER), customer_name (VARCHAR), city (VARCHAR)"
+
+# Schema Configuration
+SCHEMA_QUERY="
+SELECT 
+    table_name,
+    string_agg(
+        column_name || ' (' || data_type || ')', 
+        ', ' ORDER BY ordinal_position
+    ) as columns
+FROM information_schema.columns 
+WHERE table_schema = 'public'
+GROUP BY table_name;"
+
+DB_SCHEMA_PATH=./schema.sql
 ```
 
 ### Frontend Setup
@@ -100,7 +130,7 @@ REACT_APP_API_URL=http://localhost:8000/api/v1
 ### Start the Backend Server
 
 ```bash
-cd backend
+# RUN THIS FROM ROOT FOLDER
 uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -117,10 +147,10 @@ The application will be available at:
 - API Documentation: http://localhost:8000/docs
 
 ## Usage
-
-1. Login using the default credentials:
-   - Username: `testuser`
-   - Password: `password`
+# CREATE A NEW ROLE LIKE chatbot_user with password in postgres & mysql and grant select access to Database and # Tables
+1. Login using the default credentials: 
+   - Username: `YOUR_DB_USERNAME`
+   - Password: `YOUR_DB_PASSWORD`
 
 2. Ask questions about your data in natural language:
    - "Show me all sales"

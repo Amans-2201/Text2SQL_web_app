@@ -100,6 +100,16 @@ const DatabaseConfig = ({ onConfigComplete }) => {
     }
   };
 
+  const isPostgres = dbConfig.dbType === 'postgresql';
+  const isMysql = dbConfig.dbType === 'mysql';
+
+  // Add a function to check if all required fields are filled
+  const isFormValid = () => {
+    if (!dbConfig.host || !dbConfig.port || !dbConfig.user || !dbConfig.password) return false;
+    if (isPostgres && !dbConfig.name) return false;
+    return true;
+  };
+
   return (
     <div className="max-w-lg mx-auto p-6 bg-white rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold mb-6">Database Configuration</h2>
@@ -152,6 +162,21 @@ const DatabaseConfig = ({ onConfigComplete }) => {
           />
         </div>
 
+        {dbConfig.dbType === 'postgresql' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Database Name</label>
+            <input
+              type="text"
+              name="name"
+              value={dbConfig.name}
+              onChange={handleInputChange}
+              required
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              placeholder="Enter database name (e.g. text2sql_db)"
+            />
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-gray-700">Username</label>
           <input
@@ -178,7 +203,7 @@ const DatabaseConfig = ({ onConfigComplete }) => {
           <button
             type="button"
             onClick={testConnection}
-            disabled={loading}
+            disabled={loading || !isFormValid()}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
           >
             {loading ? <LoadingSpinner size="w-4 h-4" /> : null}
@@ -187,7 +212,7 @@ const DatabaseConfig = ({ onConfigComplete }) => {
           
           <button
             type="submit"
-            disabled={loading || !success}
+            disabled={loading || !success || !isFormValid()}
             className={`px-4 py-2 text-white rounded ${
               success ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400'
             }`}
@@ -196,7 +221,7 @@ const DatabaseConfig = ({ onConfigComplete }) => {
           </button>
         </div>
 
-        {databases.length > 0 && (
+        {dbConfig.dbType === 'mysql' && databases.length > 0 && (
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700">
               Select Database

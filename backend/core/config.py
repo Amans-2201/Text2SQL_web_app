@@ -4,6 +4,9 @@ from typing import Literal
 import os
 from dotenv import load_dotenv
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_application_path():
     """Get the path to the application directory, works both in dev and packaged"""
@@ -12,20 +15,26 @@ def get_application_path():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def load_env():
+    """Load environment variables from .env file"""
     env_path = os.path.join(get_application_path(), '.env')
-    load_dotenv(dotenv_path=env_path)
+    logger.info(f"Loading .env from: {env_path}")
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        logger.info("Successfully loaded .env file")
+    else:
+        logger.warning(f".env file not found at {env_path}")
 
-# Load .env file from the 'backend' directory specifically
+# Load .env file
 load_env()
 
 class Settings(BaseSettings):
     # Database settings
     DB_TYPE: Literal["postgresql", "mysql"] = "postgresql"
-    DB_HOST: str
-    DB_PORT: int
-    DB_NAME: str
-    DB_USER: str
-    DB_PASSWORD: str
+    DB_HOST: str = ""
+    DB_PORT: int = 0
+    DB_NAME: str = ""
+    DB_USER: str = ""
+    DB_PASSWORD: str = ""
     DATABASE_URL: str = ""
     
     # MySQL specific settings
@@ -45,7 +54,7 @@ class Settings(BaseSettings):
         if self.DB_TYPE == "postgresql":
             self.DATABASE_URL = f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         else:
-            self.MYSQL_DATABASE_URL = f"mysql+mysqlconnector://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+            self.DATABASE_URL = f"mysql+mysqlconnector://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
     @property
     def active_database_url(self) -> str:
@@ -95,4 +104,13 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
 
+# Create global settings instance
 settings = Settings()
+
+def reload_settings():
+    """Reload settings from .env file"""
+    global settings
+    logger.info("Reloading settings from .env file...")
+    load_env()  # Reload the .env file
+    settings = Settings()  # Create new settings instance
+    logger.info(f"Settings reloaded. DB_TYPE: {settings.DB_TYPE}, DB_NAME: {settings.DB_NAME}")
