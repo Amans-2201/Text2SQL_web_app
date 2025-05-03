@@ -142,7 +142,7 @@ The application will be available at:
 - API Documentation: http://localhost:8000/docs
 
 ## Usage
-# CREATE A NEW ROLE LIKE chatbot_user with password in postgres & mysql and grant select access to Database and # Tables
+### CREATE A NEW ROLE LIKE chatbot_user with password in postgres & mysql and grant select access to Database and Tables
 1. Login using the default credentials: 
    - Username: `YOUR_DB_USERNAME`
    - Password: `YOUR_DB_PASSWORD`
