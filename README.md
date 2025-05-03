@@ -2,6 +2,7 @@
 
 A conversational AI application that converts natural language questions into SQL queries and provides visualized results.
 
+## Watch the demo of app:
 
 [![Watch the video](https://img.youtube.com/vi/vw_CbdgWRHM/0.jpg)](https://youtu.be/vw_CbdgWRHM)
 
