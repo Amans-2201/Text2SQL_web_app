@@ -61,8 +61,8 @@ pip install -r requirements.txt
 
 4. Create `.env` file:
 ```env
-DB_USER=chatbot_user
-DB_PASSWORD=testing12345
+DB_USER=chatbot_user  # just a sample username , change it accordingly while creating User in ROLES 
+DB_PASSWORD=testing12345 # just a sample password , change it accordingly while creating User in ROLES 
 # Database Connection URLs
 # PostgreSQL connection string
 DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
