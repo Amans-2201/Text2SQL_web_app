@@ -45,12 +45,7 @@ A conversational AI application that converts natural language questions into SQ
 
 ### Backend Setup
 
-1. Navigate to the backend directory:
-```bash
-cd backend
-```
-
-2. Create and activate a virtual environment:
+1. Create and activate a virtual environment at root directory:
 ```bash
 python -m venv venv
 # Windows
