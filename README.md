@@ -2,11 +2,8 @@
 
 A conversational AI application that converts natural language questions into SQL queries and provides visualized results.
 
-![image](https://github.com/user-attachments/assets/cdab16df-1e99-4f97-b185-0f7510672891)
-![image](https://github.com/user-attachments/assets/a47a0b8d-4e60-45f8-aaa4-766022772c50)
-![image](https://github.com/user-attachments/assets/b399863f-193a-4c14-be93-4a2f152b2b4e)
-![image](https://github.com/user-attachments/assets/3e1cc575-80b3-4208-abd2-f60676f644f4)
-![image](https://github.com/user-attachments/assets/54c155f6-da43-49af-bde0-c68ddeb51838)
+
+[![Watch the video](https://youtu.be/vw_CbdgWRHM)]
 
 
 
